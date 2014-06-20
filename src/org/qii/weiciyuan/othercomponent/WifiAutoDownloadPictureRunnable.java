@@ -7,6 +7,7 @@ import org.qii.weiciyuan.support.asyncdrawable.TaskCache;
 import org.qii.weiciyuan.support.debug.AppLogger;
 import org.qii.weiciyuan.support.file.FileLocationMethod;
 import org.qii.weiciyuan.support.file.FileManager;
+import org.qii.weiciyuan.support.imageutility.ImageUtility;
 import org.qii.weiciyuan.support.lib.VelocityListView;
 import org.qii.weiciyuan.support.utils.GlobalContext;
 import org.qii.weiciyuan.support.utils.Utility;
@@ -144,7 +145,12 @@ public class WifiAutoDownloadPictureRunnable implements Runnable {
             return;
         }
         String path = FileManager.getFilePathFromUrl(url, FileLocationMethod.picture_large);
-        TaskCache.waitForPictureDownload(url, null, path, FileLocationMethod.picture_large);
+        if (ImageUtility.isThisBitmapCanRead(path) && TaskCache.isThisUrlTaskFinished(url)) {
+            return;
+        }
+        TaskCache.waitForPictureDownload(url, null, path,
+                FileLocationMethod.picture_large);
+
     }
 
     private void downloadAvatar(String url) {
@@ -152,7 +158,12 @@ public class WifiAutoDownloadPictureRunnable implements Runnable {
             return;
         }
         String path = FileManager.getFilePathFromUrl(url, FileLocationMethod.avatar_large);
-        TaskCache.waitForPictureDownload(url, null, path, FileLocationMethod.avatar_large);
+        if (ImageUtility.isThisBitmapCanRead(path) && TaskCache.isThisUrlTaskFinished(url)) {
+            return;
+        }
+        TaskCache.waitForPictureDownload(url, null, path,
+                FileLocationMethod.avatar_large);
+
     }
 
 }

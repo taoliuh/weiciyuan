@@ -37,7 +37,7 @@ public class GeneralPictureFragment extends Fragment {
 
     private PhotoView photoView;
 
-    private static final int ANIMATION_DURATION = 300;
+    public static final int ANIMATION_DURATION = 300;
 
 
     public static GeneralPictureFragment newInstance(String path, AnimationRect rect,
@@ -94,7 +94,7 @@ public class GeneralPictureFragment extends Fragment {
                     photoView.setImageBitmap(bitmap);
                 }
 
-            }.executeOnExecutor(MyAsyncTask.THREAD_POOL_EXECUTOR);
+            }.executeOnIO();
 
             return view;
         }
@@ -120,6 +120,7 @@ public class GeneralPictureFragment extends Fragment {
 
                         if (rect == null) {
                             photoView.getViewTreeObserver().removeOnPreDrawListener(this);
+                            endAction.run();
                             return true;
                         }
 
@@ -129,6 +130,7 @@ public class GeneralPictureFragment extends Fragment {
 
                         if (finalBounds == null) {
                             photoView.getViewTreeObserver().removeOnPreDrawListener(this);
+                            endAction.run();
                             return true;
                         }
 

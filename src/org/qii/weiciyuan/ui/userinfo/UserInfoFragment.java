@@ -93,6 +93,8 @@ public class UserInfoFragment extends AbstractMessageTimeLineFragment<MessageLis
 
     private TextView weiboCount;
 
+    public View header;
+
     private View headerFirst;
 
     private View headerSecond;
@@ -185,7 +187,7 @@ public class UserInfoFragment extends AbstractMessageTimeLineFragment<MessageLis
             Bundle savedInstanceState) {
         View view = super.onCreateView(inflater, container, savedInstanceState);
         view.setBackground(null);
-        View header = inflater
+        header = inflater
                 .inflate(R.layout.newuserinfofragment_header_layout, getListView(), false);
         getListView().addHeaderView(header);
 
@@ -803,19 +805,15 @@ public class UserInfoFragment extends AbstractMessageTimeLineFragment<MessageLis
 
     private void setListViewPositionFromPositionsCache() {
 
-        TimeLinePosition p = position;
-        if (p != null) {
-            getListView().setSelectionFromTop(p.position + 1, p.top);
-        } else {
-            getListView().setSelectionFromTop(0, 0);
-        }
-
+        Utility.setListViewSelectionFromTop(getListView(),
+                position != null ? position.position : 0,
+                position != null ? position.top : 0);
 
     }
 
     @Override
     public void onAnimationStart(Animator animation) {
-
+        AnimationUtility.forceConvertActivityToTranslucent(getActivity());
     }
 
     @Override
@@ -823,6 +821,8 @@ public class UserInfoFragment extends AbstractMessageTimeLineFragment<MessageLis
         if (getActivity() == null) {
             return;
         }
+
+        AnimationUtility.forceConvertActivityFromTranslucent(getActivity());
 
         displayCoverPicture();
 

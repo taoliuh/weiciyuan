@@ -51,8 +51,10 @@ public class ContainerFragment extends Fragment {
         wait = (TextView) view.findViewById(R.id.wait);
         error = (TextView) view.findViewById(R.id.error);
 
-        String url = getArguments().getString("url");
-        boolean animateIn = getArguments().getBoolean("animationIn");
+        Bundle bundle = getArguments();
+        String url = bundle.getString("url");
+        boolean animateIn = bundle.getBoolean("animationIn");
+        bundle.putBoolean("animationIn", false);
 
         String path = FileManager.getFilePathFromUrl(url, FileLocationMethod.picture_large);
 
@@ -63,7 +65,7 @@ public class ContainerFragment extends Fragment {
             GalleryAnimationActivity activity = (GalleryAnimationActivity) getActivity();
             activity.showBackgroundImmediately();
             progressView.setVisibility(View.VISIBLE);
-
+            wait.setVisibility(View.VISIBLE);
             TimeLineBitmapDownloader.getInstance()
                     .download(this, url, FileLocationMethod.picture_large, downloadCallback);
 
@@ -91,25 +93,34 @@ public class ContainerFragment extends Fragment {
         }
 
         @Override
-        public void onComplete(String localPath) {
+        public void onComplete(final String localPath) {
             super.onComplete(localPath);
-            progressView.setVisibility(View.INVISIBLE);
-            wait.setVisibility(View.INVISIBLE);
+            CircleProgressView circleProgressView = (CircleProgressView) progressView;
+            circleProgressView.executeRunnableAfterAnimationFinish(new Runnable() {
+                @Override
+                public void run() {
+                    if (getActivity() == null) {
+                        return;
+                    }
+                    progressView.setVisibility(View.INVISIBLE);
+                    wait.setVisibility(View.INVISIBLE);
 
-            if (TextUtils.isEmpty(localPath)) {
-                error.setVisibility(View.VISIBLE);
-                error.setText(
-                        getString(R.string.picture_cant_download_or_sd_cant_read));
-            } else if (!ImageUtility.isThisBitmapCanRead(localPath)) {
-                error.setVisibility(View.VISIBLE);
-                error.setText(
-                        getString(
-                                R.string.download_finished_but_cant_read_picture_file));
-            } else {
-                error.setVisibility(View.INVISIBLE);
-                displayPicture(localPath, false);
-            }
+                    if (TextUtils.isEmpty(localPath)) {
+                        error.setVisibility(View.VISIBLE);
+                        error.setText(
+                                getString(R.string.picture_cant_download_or_sd_cant_read));
+                    } else if (!ImageUtility.isThisBitmapCanRead(localPath)) {
+                        error.setVisibility(View.VISIBLE);
+                        error.setText(
+                                getString(
+                                        R.string.download_finished_but_cant_read_picture_file));
+                    } else {
+                        error.setVisibility(View.INVISIBLE);
+                        displayPicture(localPath, false);
+                    }
 
+                }
+            });
         }
 
 
@@ -140,8 +151,9 @@ public class ContainerFragment extends Fragment {
                 fragment = GeneralPictureFragment.newInstance(path, rect, animateIn);
             }
             getChildFragmentManager().beginTransaction().replace(R.id.child, fragment).commit();
+
         } else {
-            LargePictureFragment fragment = LargePictureFragment.newInstance(path);
+            LargePictureFragment fragment = LargePictureFragment.newInstance(path, animateIn);
             getChildFragmentManager().beginTransaction().replace(R.id.child, fragment).commit();
         }
 

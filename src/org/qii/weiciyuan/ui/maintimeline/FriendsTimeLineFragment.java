@@ -15,6 +15,7 @@ import org.qii.weiciyuan.othercomponent.WifiAutoDownloadPictureRunnable;
 import org.qii.weiciyuan.support.database.FriendsTimeLineDBTask;
 import org.qii.weiciyuan.support.debug.AppLogger;
 import org.qii.weiciyuan.support.error.WeiboException;
+import org.qii.weiciyuan.support.lib.HeaderListView;
 import org.qii.weiciyuan.support.lib.MyAsyncTask;
 import org.qii.weiciyuan.support.lib.TopTipBar;
 import org.qii.weiciyuan.support.lib.VelocityListView;
@@ -203,29 +204,29 @@ public class FriendsTimeLineFragment extends AbstractMessageTimeLineFragment<Mes
     }
 
     private void setListViewPositionFromPositionsCache() {
-        TimeLinePosition p = positionCache.get(currentGroupId);
-        if (p != null) {
-            getListView().setSelectionFromTop(p.position + 1, p.top);
-        } else {
-            getListView().setSelectionFromTop(0, 0);
-        }
-
-        setListViewUnreadTipBar(p);
-
+        final TimeLinePosition p = positionCache.get(currentGroupId);
+        Utility.setListViewSelectionFromTop(getListView(), p != null ? p.position : 0,
+                p != null ? p.top : 0, new Runnable() {
+            @Override
+            public void run() {
+                setListViewUnreadTipBar(p);
+            }
+        });
     }
 
     private void setListViewUnreadTipBar(TimeLinePosition p) {
         if (p != null && p.newMsgIds != null) {
+            if (SettingUtility.getEnableAutoRefresh()) {
+                newMsgTipBar.setType(TopTipBar.Type.ALWAYS);
+            }
             newMsgTipBar.setValue(p.newMsgIds);
         }
     }
 
+    //must create new position every time onpause,  pulltorefresh wont call onListViewScrollStop
     private void savePositionToDB() {
+        savePositionToPositionsCache();
         TimeLinePosition position = positionCache.get(currentGroupId);
-        if (position == null) {
-            savePositionToPositionsCache();
-            position = positionCache.get(currentGroupId);
-        }
         position.newMsgIds = newMsgTipBar.getValues();
         final String groupId = currentGroupId;
         FriendsTimeLineDBTask
@@ -288,7 +289,7 @@ public class FriendsTimeLineFragment extends AbstractMessageTimeLineFragment<Mes
             case FIRST_TIME_START:
                 if (Utility.isTaskStopped(dbTask) && getList().getSize() == 0) {
                     dbTask = new DBCacheTask(this, accountBean.getUid());
-                    dbTask.executeOnExecutor(MyAsyncTask.THREAD_POOL_EXECUTOR);
+                    dbTask.executeOnIO();
                     GroupInfoTask groupInfoTask = new GroupInfoTask(
                             GlobalContext.getInstance().getSpecialToken(),
                             GlobalContext.getInstance().getCurrentAccountId());
@@ -320,7 +321,7 @@ public class FriendsTimeLineFragment extends AbstractMessageTimeLineFragment<Mes
 
                 if (Utility.isTaskStopped(dbTask) && getList().getSize() == 0) {
                     dbTask = new DBCacheTask(this, accountBean.getUid());
-                    dbTask.executeOnExecutor(MyAsyncTask.THREAD_POOL_EXECUTOR);
+                    dbTask.executeOnIO();
                     GroupInfoTask groupInfoTask = new GroupInfoTask(
                             GlobalContext.getInstance().getSpecialToken(),
                             GlobalContext.getInstance().getCurrentAccountId());
@@ -676,42 +677,68 @@ public class FriendsTimeLineFragment extends AbstractMessageTimeLineFragment<Mes
         }
     }
 
-    private void addNewDataAndRememberPositionAutoRefresh(MessageListBean newValue) {
+    private void addNewDataAndRememberPositionAutoRefresh(final MessageListBean newValue) {
 
-        int size = newValue.getSize();
+        int initSize = getList().getSize();
 
         if (getActivity() != null && newValue.getSize() > 0) {
             getList().addNewData(newValue);
+            HeaderListView headerListView = (HeaderListView) getListView();
+            View firstChildView = getListView().getChildAt(0);
+            boolean isFirstViewHeader = headerListView.isThisViewHeader(firstChildView);
+
+            if (isFirstViewHeader) {
+                getAdapter().notifyDataSetChanged();
+                Utility.setListViewSelectionFromTop(getListView(), 0, 0);
+                return;
+            }
+
             int index = getListView().getFirstVisiblePosition();
-            newMsgTipBar.setValue(newValue, false);
-            newMsgTipBar.setType(TopTipBar.Type.ALWAYS);
-            View v = getListView().getChildAt(1);
-            int top = (v == null) ? 0 : v.getTop();
+
+            View firstAdapterItemView = Utility.getListViewFirstAdapterItemView(getListView());
+            final int top = (firstAdapterItemView == null) ? 0 : firstAdapterItemView.getTop();
+
             getAdapter().notifyDataSetChanged();
-            int ss = index + size;
-            getListView().setSelectionFromTop(ss + 1, top);
+            int finalSize = getList().getSize();
+            final int positionAfterRefresh = index + finalSize - initSize;
+            Utility.setListViewSelectionFromTop(getListView(), positionAfterRefresh, top,
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            newMsgTipBar.setValue(newValue, false);
+                            newMsgTipBar.setType(TopTipBar.Type.ALWAYS);
+                        }
+                    });
+
 
         }
 
     }
 
-    private void addNewDataAndRememberPosition(MessageListBean newValue) {
-        newMsgTipBar.setValue(newValue, false);
-        newMsgTipBar.setType(TopTipBar.Type.AUTO);
+    private void addNewDataAndRememberPosition(final MessageListBean newValue) {
 
-        int size = newValue.getSize();
+        int initSize = getList().getSize();
 
         if (getActivity() != null && newValue.getSize() > 0) {
             getList().addNewData(newValue);
             int index = getListView().getFirstVisiblePosition();
-
-            View v = getListView().getChildAt(1);
-            int top = (v == null) ? 0 : v.getTop();
             getAdapter().notifyDataSetChanged();
-            int ss = index + size;
-            getListView().setSelectionFromTop(ss + 1, top);
-        }
+            int finalSize = getList().getSize();
+            final int positionAfterRefresh = index + finalSize - initSize + getListView()
+                    .getHeaderViewsCount();
+            //use 1 px to show newMsgTipBar
+            Utility.setListViewSelectionFromTop(getListView(), positionAfterRefresh, 1,
+                    new Runnable() {
 
+                        @Override
+                        public void run() {
+                            newMsgTipBar.setValue(newValue, false);
+                            newMsgTipBar.setType(TopTipBar.Type.AUTO);
+                        }
+                    });
+
+
+        }
 
     }
 
@@ -731,12 +758,12 @@ public class FriendsTimeLineFragment extends AbstractMessageTimeLineFragment<Mes
                 getAdapter().notifyDataSetChanged();
             } else {
 
-                View v = Utility
-                        .getListViewItemViewFromPosition(getListView(), position + 1 + 1);
-                int top = (v == null) ? 0 : v.getTop();
+                int index = getListView().getFirstVisiblePosition();
+                View v = Utility.getListViewFirstAdapterItemView(getListView());
+                final int top = (v == null) ? 0 : v.getTop();
                 getAdapter().notifyDataSetChanged();
-                int ss = position + 1 + size - 1;
-                getListView().setSelectionFromTop(ss, top);
+                final int positionAfterRefresh = index + size;
+                Utility.setListViewSelectionFromTop(getListView(), positionAfterRefresh, top);
             }
         }
 

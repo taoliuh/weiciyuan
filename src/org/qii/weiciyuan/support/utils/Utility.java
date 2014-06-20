@@ -10,7 +10,9 @@ import org.qii.weiciyuan.othercomponent.unreadnotification.NotificationServiceHe
 import org.qii.weiciyuan.support.debug.AppLogger;
 import org.qii.weiciyuan.support.file.FileLocationMethod;
 import org.qii.weiciyuan.support.file.FileManager;
+import org.qii.weiciyuan.support.imageutility.ImageUtility;
 import org.qii.weiciyuan.support.lib.AutoScrollListView;
+import org.qii.weiciyuan.support.lib.HeaderListView;
 import org.qii.weiciyuan.support.lib.MyAsyncTask;
 import org.qii.weiciyuan.support.lib.RecordOperationAppBroadcastReceiver;
 import org.qii.weiciyuan.support.settinghelper.SettingUtility;
@@ -67,6 +69,7 @@ import android.view.SoundEffectConstants;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.webkit.WebView;
 import android.widget.ImageView;
 import android.widget.ListView;
@@ -507,11 +510,11 @@ public class Utility {
                         FileLocationMethod.picture_bmiddle);
                 String largePath = FileManager.getFilePathFromUrl(msg.getOriginal_pic(),
                         FileLocationMethod.picture_large);
-                if (new File(largePath).exists()) {
+                if (ImageUtility.isThisBitmapCanRead(largePath)) {
                     picUrl = Uri.fromFile(new File(largePath));
-                } else if (new File(middlePath).exists()) {
+                } else if (ImageUtility.isThisBitmapCanRead(middlePath)) {
                     picUrl = Uri.fromFile(new File(middlePath));
-                } else if (new File(smallPath).exists()) {
+                } else if (ImageUtility.isThisBitmapCanRead(smallPath)) {
                     picUrl = Uri.fromFile(new File(smallPath));
                 }
                 if (picUrl != null) {
@@ -572,7 +575,7 @@ public class Utility {
 
     //to do getChildAt(0)
     public static TimeLinePosition getCurrentPositionFromListView(ListView listView) {
-        View view = listView.getChildAt(1);
+        View view = listView.getChildAt(0);
         int top = (view != null ? view.getTop() : 0);
         return new TimeLinePosition(listView.getFirstVisiblePosition(), top);
     }
@@ -718,6 +721,46 @@ public class Utility {
 
     public static View getListViewItemViewFromPosition(ListView listView, int position) {
         return listView.getChildAt(position - listView.getFirstVisiblePosition());
+    }
+
+    public static void setListViewSelectionFromTop(final ListView listView,
+            final int positionAfterRefresh, final int top, final Runnable runnable) {
+        listView.getViewTreeObserver()
+                .addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+                    @Override
+                    public boolean onPreDraw() {
+                        listView.getViewTreeObserver().removeOnPreDrawListener(this);
+                        listView.setSelectionFromTop(positionAfterRefresh, top);
+                        if (runnable != null) {
+                            runnable.run();
+                        }
+                        return false;
+                    }
+                });
+    }
+
+    public static void setListViewSelectionFromTop(final ListView listView,
+            final int positionAfterRefresh, final int top) {
+        setListViewSelectionFromTop(listView, positionAfterRefresh, top, null);
+    }
+
+    public static View getListViewFirstAdapterItemView(ListView listView) {
+        if (listView instanceof HeaderListView) {
+            HeaderListView headerListView = (HeaderListView) listView;
+            int childCount = headerListView.getChildCount();
+            for (int i = 0; i < childCount; i++) {
+                View childView = headerListView.getChildAt(i);
+                if (!headerListView.isThisViewHeader(childView)) {
+                    return childView;
+                }
+            }
+
+            //fallback to first view
+            AppLogger.v("all listview children are header view");
+            return headerListView.getChildAt(0);
+        }
+
+        return listView.getChildAt(0);
     }
 
     public static String getMotionEventStringName(MotionEvent event) {
@@ -942,6 +985,40 @@ public class Utility {
         return !hasMenuKey && !hasBackKey;
     }
 
+    /**
+     * https://svn.apache.org/repos/asf/cayenne/main/branches/cayenne-jdk1.5-generics-unpublished/src/main/java/org/apache/cayenne/conf/Rot47PasswordEncoder.java
+     */
+    public static String rot47(String value) {
+        int length = value.length();
+        StringBuilder result = new StringBuilder();
+
+        for (int i = 0; i < length; i++) {
+            char c = value.charAt(i);
+
+            // Process letters, numbers, and symbols -- ignore spaces.
+            if (c != ' ') {
+                // Add 47 (it is ROT-47, after all).
+                c += 47;
+
+                // If character is now above printable range, make it printable.
+                // Range of printable characters is ! (33) to ~ (126).  A value
+                // of 127 (just above ~) would therefore get rotated down to a
+                // 33 (the !).  The value 94 comes from 127 - 33 = 94, which is
+                // therefore the value that needs to be subtracted from the
+                // non-printable character to put it into the correct printable
+                // range.
+                if (c > '~') {
+                    c -= 94;
+                }
+            }
+
+            result.append(c);
+        }
+
+        return result.toString();
+    }
+
+
     //if app's certificate md5 is correct, enable Crashlytics crash log platform, you should not modify those md5 values
     public static boolean isCertificateFingerprintCorrect(Context context) {
         try {
@@ -967,7 +1044,7 @@ public class Utility {
             strResult = strResult.toUpperCase();
             //debug
             if ("DE421D82D4BBF9042886E72AA31FE22".toUpperCase().equals(strResult)) {
-                return true;
+                return false;
             }
             //relaease
             if ("C96155C3DAD4CA1069808FBAC813A69".toUpperCase().equals(strResult)) {
@@ -1033,13 +1110,14 @@ public class Utility {
     }
 
     //long click link(schedule show dialog event), press home button(onPause onSaveInstance), show dialog,then crash....
+    //executePendingTransactions still occur crash
     public static void forceShowDialog(FragmentActivity activity, DialogFragment dialogFragment) {
-//        try {
-        dialogFragment.show(activity.getSupportFragmentManager(), "");
-        activity.getSupportFragmentManager().executePendingTransactions();
-//        } catch (Exception ignored) {
-//
-//        }
+        try {
+            dialogFragment.show(activity.getSupportFragmentManager(), "");
+            activity.getSupportFragmentManager().executePendingTransactions();
+        } catch (Exception ignored) {
+
+        }
     }
 }
 
