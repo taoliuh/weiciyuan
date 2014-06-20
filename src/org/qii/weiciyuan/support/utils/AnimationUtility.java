@@ -57,9 +57,9 @@ public class AnimationUtility {
 
     public static void forceConvertActivityFromTranslucent(Activity activity) {
         try {
-            Method method = Activity.class.getDeclaredMethod("convertFromTranslucent", null);
+            Method method = Activity.class.getDeclaredMethod("convertFromTranslucent", new Class[]{null});
             method.setAccessible(true);
-            method.invoke(activity, null);
+            method.invoke(activity, new Object[]{null});
         } catch (Throwable ignored) {
         }
     }
