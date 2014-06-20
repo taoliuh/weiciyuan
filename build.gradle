@@ -6,7 +6,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.android.tools.build:gradle:0.6.3+'
+        classpath 'com.android.tools.build:gradle:0.11.+'
     }
 }
 
@@ -18,12 +18,13 @@ dependencies {
     compile project(':libs:slidingmenulibrary')
     compile project(':libs:showcaseviewlibrary')
     compile 'com.google.android.gms:play-services:4.0.30+'
+    compile fileTree(dir: 'libs', include: ['*.jar'])
 
 }
 
 android {
 
-    buildToolsVersion "19"
+    buildToolsVersion "19.1.0"
     compileSdkVersion 19
 
     defaultConfig {
